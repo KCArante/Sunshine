@@ -1,8 +1,10 @@
-package com.example.android.sunshine.activities;
+package com.example.android.sunshine;
 
+import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.text.format.Time;
 import android.util.Log;
@@ -12,10 +14,10 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-
-import com.example.android.sunshine.R;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -65,6 +67,16 @@ public class ForecastFragment extends Fragment {
 
             ListView listView = (ListView) fragmentView.findViewById(R.id.listview_forecast);
             listView.setAdapter(mForecastAdapter);
+            listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                @Override
+                public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                    String forecast = mForecastAdapter.getItem(position);
+                    Toast.makeText(getActivity(), forecast, Toast.LENGTH_SHORT).show();
+                    Intent intent = new Intent(getActivity(), DetailActivity.class)
+                            .putExtra(Intent.EXTRA_TEXT, forecast);
+                    startActivity(intent);
+                }
+            });
 
             return fragmentView;
         }
@@ -82,11 +94,24 @@ public class ForecastFragment extends Fragment {
         //Permission denied. Add uses-permission on the Android Manifest file
         int id = item.getItemId();
         if(id == R.id.action_refresh){
-            FetchWeatherTask weatherTask = new FetchWeatherTask();
-            weatherTask.execute("94043");
+            updateWeather();
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void updateWeather(){
+        FetchWeatherTask weatherTask = new FetchWeatherTask();
+        String location = PreferenceManager.getDefaultSharedPreferences(getActivity())
+                .getString(getString(R.string.pref_location_key), getString(R.string.pref_location_default));
+        weatherTask.execute(location);
+
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+//        updateWeather();
     }
 
     public class FetchWeatherTask extends AsyncTask<String,Void,String[]>{
@@ -103,13 +128,19 @@ public class ForecastFragment extends Fragment {
 
         //Prepare the weather high/low for presentation
         private String formatHighLows(double high, double low){
-            return high+ " / "+ low;
+
+            long roundedHigh = Math.round(high);
+            long roundedLow = Math.round(low);
+
+            String highLowStr = roundedHigh +" / "+ roundedLow;
+
+            return highLowStr;
         }
         private String[] getWeatherDataFromJson(String forecastJsonStr, int numDays) throws JSONException{
 
             final String OWM_LIST = "list";
             final String OWM_WEATHER = "weather";
-            final String OWM_TEMPERATURE = "temperature";
+            final String OWM_TEMPERATURE = "temp";
             final String OWM_MAX = "max";
             final String OWM_MIN = "min";
             final String OWM_DESCRIPTION = "main";
@@ -197,7 +228,6 @@ public class ForecastFragment extends Fragment {
                 // Create the request to OpenWeatherMap, and open the connection
                 urlConnection = (HttpURLConnection) url.openConnection();
                 urlConnection.setRequestMethod("GET");
-
                 urlConnection.connect();//Do this on background to avoid NetworkOnMainThreadException
 
                 // Read the input stream into a String
@@ -255,7 +285,6 @@ public class ForecastFragment extends Fragment {
         protected void onPostExecute(String[] strings) {
             if(strings != null){
                 mForecastAdapter.clear();
-
                 for(String dayForecastStr : strings){
                     mForecastAdapter.add(dayForecastStr);
                 }
